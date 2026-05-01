@@ -12,12 +12,12 @@ export default function ChatPage() {
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // ✅ Auto scroll
+  // 🔽 Auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ✅ Get current user
+  // 👤 Get current user
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -26,51 +26,23 @@ export default function ChatPage() {
     getUser();
   }, []);
 
-  // ✅ Fetch users with last message
+  // 👥 Fetch users
   useEffect(() => {
     if (!currentUser) return;
 
     const fetchUsers = async () => {
-      const { data: profiles } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("*")
         .neq("id", currentUser.id);
 
-      const usersWithLastMessage = await Promise.all(
-        (profiles || []).map(async (user) => {
-          const { data } = await supabase
-            .from("messages")
-            .select("*")
-            .or(
-              `and(sender.eq.${currentUser.id},receiver.eq.${user.id}),and(sender.eq.${user.id},receiver.eq.${currentUser.id})`
-            )
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          const lastMessage = data?.[0];
-
-          return {
-            ...user,
-            lastMessage: lastMessage?.content || "",
-            time: lastMessage?.created_at || null,
-          };
-        })
-      );
-
-      // ✅ Sort by latest chat
-      usersWithLastMessage.sort(
-        (a, b) =>
-          new Date(b.time || 0).getTime() -
-          new Date(a.time || 0).getTime()
-      );
-
-      setUsers(usersWithLastMessage);
+      setUsers(data || []);
     };
 
     fetchUsers();
   }, [currentUser]);
 
-  // ✅ Fetch messages + realtime
+  // 💬 Fetch messages + realtime
   useEffect(() => {
     if (!selectedUser || !currentUser) return;
 
@@ -88,24 +60,60 @@ export default function ChatPage() {
 
     fetchMessages();
 
+    // 🔥 Realtime listener
     const channel = supabase
       .channel("chat-room")
+
+      // INSERT (new messages)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
+        async (payload) => {
           const msg = payload.new;
 
-          if (
+          const isRelevant =
             (msg.sender === currentUser.id &&
               msg.receiver === selectedUser.id) ||
             (msg.sender === selectedUser.id &&
-              msg.receiver === currentUser.id)
-          ) {
+              msg.receiver === currentUser.id);
+
+          if (isRelevant) {
             setMessages((prev) => [...prev, msg]);
+          }
+
+          // 🔥 Auto mark as seen (REAL FIX)
+          if (
+            msg.sender === selectedUser.id &&
+            msg.receiver === currentUser.id
+          ) {
+            await supabase
+              .from("messages")
+              .update({ seen: true })
+              .eq("id", msg.id);
+
+            // 🔥 instant UI update
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msg.id ? { ...m, seen: true } : m
+              )
+            );
           }
         }
       )
+
+      // UPDATE (seen status change)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) => {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === payload.new.id ? payload.new : msg
+            )
+          );
+        }
+      )
+
       .subscribe();
 
     return () => {
@@ -113,7 +121,7 @@ export default function ChatPage() {
     };
   }, [selectedUser, currentUser]);
 
-  // ✅ Send message
+  // 📤 Send message
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) return;
 
@@ -121,19 +129,19 @@ export default function ChatPage() {
       sender: currentUser.id,
       receiver: selectedUser.id,
       content: newMessage,
+      seen: false,
     });
 
     setNewMessage("");
   };
 
-  // ✅ Enter to send
+  // ⌨️ Enter to send
   const handleKeyDown = (e: any) => {
     if (e.key === "Enter") sendMessage();
   };
 
   // ⏱ Format time
   const formatTime = (time: string) => {
-    if (!time) return "";
     return new Date(time).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
@@ -143,9 +151,9 @@ export default function ChatPage() {
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       
-      {/* 🔹 USERS PANEL */}
+      {/* USERS */}
       <div style={{ width: "30%", borderRight: "1px solid #ccc" }}>
-        <h3 style={{ padding: 10 }}>Chats</h3>
+        <h3 style={{ padding: 10 }}>Users</h3>
 
         {users.map((user) => (
           <div
@@ -159,32 +167,18 @@ export default function ChatPage() {
                 selectedUser?.id === user.id ? "#f0f0f0" : "white",
             }}
           >
-            <b>{user.username}</b>
-
-            <div style={{ fontSize: 12, color: "gray" }}>
-              {user.lastMessage || "No messages"}
-            </div>
-
-            <div style={{ fontSize: 10, color: "#999" }}>
-              {formatTime(user.time)}
-            </div>
+            👤 {user.username}
           </div>
         ))}
       </div>
 
-      {/* 🔹 CHAT PANEL */}
+      {/* CHAT */}
       <div style={{ width: "70%", padding: 10 }}>
         {selectedUser ? (
           <>
             <h3>Chat with {selectedUser.username}</h3>
 
-            <div
-              style={{
-                height: "70vh",
-                overflowY: "auto",
-                padding: 10,
-              }}
-            >
+            <div style={{ height: "70vh", overflowY: "auto" }}>
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -210,6 +204,12 @@ export default function ChatPage() {
 
                   <div style={{ fontSize: 10, color: "gray" }}>
                     {formatTime(msg.created_at)}
+
+                    {msg.sender === currentUser.id && (
+                      <span style={{ marginLeft: 5 }}>
+                        {msg.seen ? "✔✔" : "✔"}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
