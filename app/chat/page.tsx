@@ -9,24 +9,35 @@ export default function ChatPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // 🔽 Auto scroll
+  // 🔽 Auto scroll (UNCHANGED)
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 👤 Get current user
+  // 👤 Get current user + profile
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
-      setCurrentUser(data.user);
+
+      if (data.user) {
+        // ✅ fetch profile also
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", data.user.id)
+          .single();
+
+        setCurrentUser({ ...data.user, ...profile });
+      }
     };
     getUser();
   }, []);
 
-  // 👥 Fetch users
+  // 👥 Fetch users (UNCHANGED)
   useEffect(() => {
     if (!currentUser) return;
 
@@ -42,7 +53,7 @@ export default function ChatPage() {
     fetchUsers();
   }, [currentUser]);
 
-  // 💬 Fetch messages + realtime
+  // 💬 Messages realtime (UNCHANGED)
   useEffect(() => {
     if (!selectedUser || !currentUser) return;
 
@@ -60,11 +71,9 @@ export default function ChatPage() {
 
     fetchMessages();
 
-    // 🔥 Realtime listener
     const channel = supabase
       .channel("chat-room")
 
-      // INSERT (new messages)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
@@ -81,7 +90,6 @@ export default function ChatPage() {
             setMessages((prev) => [...prev, msg]);
           }
 
-          // 🔥 Auto mark as seen (REAL FIX)
           if (
             msg.sender === selectedUser.id &&
             msg.receiver === currentUser.id
@@ -91,7 +99,6 @@ export default function ChatPage() {
               .update({ seen: true })
               .eq("id", msg.id);
 
-            // 🔥 instant UI update
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === msg.id ? { ...m, seen: true } : m
@@ -101,7 +108,6 @@ export default function ChatPage() {
         }
       )
 
-      // UPDATE (seen status change)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages" },
@@ -121,7 +127,38 @@ export default function ChatPage() {
     };
   }, [selectedUser, currentUser]);
 
-  // 📤 Send message
+  // 🔥 REALTIME PROFILE FIX (NEW)
+  useEffect(() => {
+    const channel = supabase
+      .channel("profiles-sync")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles" },
+        (payload) => {
+          const updated = payload.new;
+
+          // update users list
+          setUsers((prev) =>
+            prev.map((u) => (u.id === updated.id ? updated : u))
+          );
+
+          // update current user
+          if (currentUser && updated.id === currentUser.id) {
+            setCurrentUser((prev: any) => ({ ...prev, ...updated }));
+          }
+
+          // update selected user
+          if (selectedUser && updated.id === selectedUser.id) {
+            setSelectedUser(updated);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [currentUser, selectedUser]);
+
+  // 📤 Send message (UNCHANGED)
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) return;
 
@@ -135,12 +172,12 @@ export default function ChatPage() {
     setNewMessage("");
   };
 
-  // ⌨️ Enter to send
+  // ⌨️ Enter send (UNCHANGED)
   const handleKeyDown = (e: any) => {
     if (e.key === "Enter") sendMessage();
   };
 
-  // ⏱ Format time
+  // ⏱ Time (UNCHANGED)
   const formatTime = (time: string) => {
     return new Date(time).toLocaleTimeString([], {
       hour: "2-digit",
@@ -148,12 +185,58 @@ export default function ChatPage() {
     });
   };
 
+  // 🔥 Upload Avatar (FIXED)
+  const uploadAvatar = async () => {
+    if (!file || !currentUser) return;
+
+    const fileName = `${currentUser.id}-${Date.now()}`;
+
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(fileName, file);
+
+    if (error) {
+      alert("Upload failed ❌");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(fileName);
+
+    await supabase
+      .from("profiles")
+      .update({ avatar_url: data.publicUrl })
+      .eq("id", currentUser.id);
+
+    // ✅ update instantly
+    setCurrentUser((prev: any) => ({
+      ...prev,
+      avatar_url: data.publicUrl,
+    }));
+
+    alert("Avatar updated ✅");
+  };
+
+  // 🔥 Safe avatar
+  const getAvatar = (user: any) => {
+    if (!user) return "/default.png";
+
+    return (
+      user.avatar_url ||
+      `https://ui-avatars.com/api/?name=${user.username}`
+    );
+  };
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       
       {/* USERS */}
-      <div style={{ width: "30%", borderRight: "1px solid #ccc" }}>
-        <h3 style={{ padding: 10 }}>Users</h3>
+      <div style={{ width: "30%", borderRight: "1px solid #ccc", padding: 10 }}>
+        <h3>Users</h3>
+
+        <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <button onClick={uploadAvatar}>Upload</button>
 
         {users.map((user) => (
           <div
@@ -163,11 +246,21 @@ export default function ChatPage() {
               padding: 10,
               cursor: "pointer",
               borderBottom: "1px solid #eee",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
               background:
                 selectedUser?.id === user.id ? "#f0f0f0" : "white",
             }}
           >
-            👤 {user.username}
+            <img
+              src={getAvatar(user)}
+              width={40}
+              height={40}
+              style={{ borderRadius: "50%" }}
+              onError={(e) => (e.currentTarget.src = "/default.png")}
+            />
+            {user.username}
           </div>
         ))}
       </div>
@@ -176,40 +269,61 @@ export default function ChatPage() {
       <div style={{ width: "70%", padding: 10 }}>
         {selectedUser ? (
           <>
-            <h3>Chat with {selectedUser.username}</h3>
+            <h3 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <img
+                src={getAvatar(selectedUser)}
+                width={35}
+                style={{ borderRadius: "50%" }}
+              />
+              {selectedUser.username}
+            </h3>
 
             <div style={{ height: "70vh", overflowY: "auto" }}>
               {messages.map((msg) => (
                 <div
                   key={msg.id}
                   style={{
-                    textAlign:
-                      msg.sender === currentUser.id ? "right" : "left",
+                    display: "flex",
+                    flexDirection:
+                      msg.sender === currentUser.id ? "row-reverse" : "row",
+                    alignItems: "center",
+                    gap: 8,
                     marginBottom: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      display: "inline-block",
-                      padding: "8px 12px",
-                      borderRadius: 10,
-                      background:
-                        msg.sender === currentUser.id
-                          ? "#d1f7c4"
-                          : "#eee",
-                    }}
-                  >
-                    {msg.content}
-                  </div>
+                  <img
+                    src={
+                      msg.sender === currentUser.id
+                        ? getAvatar(currentUser)
+                        : getAvatar(selectedUser)
+                    }
+                    width={30}
+                    style={{ borderRadius: "50%" }}
+                  />
 
-                  <div style={{ fontSize: 10, color: "gray" }}>
-                    {formatTime(msg.created_at)}
+                  <div>
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        background:
+                          msg.sender === currentUser.id
+                            ? "#d1f7c4"
+                            : "#eee",
+                      }}
+                    >
+                      {msg.content}
+                    </div>
 
-                    {msg.sender === currentUser.id && (
-                      <span style={{ marginLeft: 5 }}>
-                        {msg.seen ? "✔✔" : "✔"}
-                      </span>
-                    )}
+                    <div style={{ fontSize: 10, color: "gray" }}>
+                      {formatTime(msg.created_at)}
+
+                      {msg.sender === currentUser.id && (
+                        <span style={{ marginLeft: 5 }}>
+                          {msg.seen ? "✔✔" : "✔"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
