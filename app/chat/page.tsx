@@ -10,8 +10,20 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
-
+  const [showChat, setShowChat] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const [isMobile, setIsMobile] = useState(false);
+
+useEffect(() => {
+  const handleResize = () => {
+    setIsMobile(window.innerWidth < 768);
+  };
+
+  handleResize();
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
+}, []);
 
   // 🔽 Auto scroll (UNCHANGED)
   useEffect(() => {
@@ -250,19 +262,32 @@ if (
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      
-      {/* USERS */}
-      <div style={{ width: "30%", borderRight: "1px solid #ccc", padding: 10 }}>
+  <div style={{ display: "flex", height: "100vh", width: "100%" }}>
+
+    {/* ✅ USERS PANEL */}
+    {(!showChat || !isMobile) && (
+  <div
+    style={{
+      width: isMobile ? "100%" : "30%",
+          borderRight: "1px solid #ccc",
+          padding: 10,
+        }}
+      >
         <h3>Users</h3>
 
-        <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
         <button onClick={uploadAvatar}>Upload</button>
 
         {users.map((user) => (
           <div
             key={user.id}
-            onClick={() => setSelectedUser(user)}
+            onClick={() => {
+              setSelectedUser(user);
+              setShowChat(true); // 🔥 mobile switch
+            }}
             style={{
               padding: 10,
               cursor: "pointer",
@@ -285,9 +310,21 @@ if (
           </div>
         ))}
       </div>
+    )}
 
-      {/* CHAT */}
-      <div style={{ width: "70%", padding: 10 }}>
+    {/* ✅ CHAT PANEL */}
+    {(showChat || !isMobile) && (
+  <div
+    style={{
+      width: isMobile ? "100%" : "70%",
+          padding: 10,
+        }}
+      >
+        {/* 🔥 BACK BUTTON (mobile only) */}
+        {isMobile && (
+          <button onClick={() => setShowChat(false)}>⬅ Back</button>
+        )}
+
         {selectedUser ? (
           <>
             <h3 style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -367,6 +404,7 @@ if (
           <p>Select a user to start chatting</p>
         )}
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 }
