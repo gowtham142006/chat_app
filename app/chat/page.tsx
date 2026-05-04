@@ -128,36 +128,34 @@ export default function ChatPage() {
   }, [selectedUser, currentUser]);
 
   // 🔥 REALTIME PROFILE FIX (NEW)
-  useEffect(() => {
-    const channel = supabase
-      .channel("profiles-sync")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        (payload) => {
-          const updated = payload.new;
+ useEffect(() => {
+  const channel = supabase
+    .channel("profiles-sync")
+    .on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "profiles" },
+      (payload) => {
+        const updated = payload.new;
 
-          // update users list
-          setUsers((prev) =>
-            prev.map((u) => (u.id === updated.id ? updated : u))
-          );
+        setUsers((prev) =>
+          prev.map((u) => (u.id === updated.id ? updated : u))
+        );
 
-          // update current user
-          if (currentUser && updated.id === currentUser.id) {
-            setCurrentUser((prev: any) => ({ ...prev, ...updated }));
-          }
+        setCurrentUser((prev: any) =>
+          prev && prev.id === updated.id ? { ...prev, ...updated } : prev
+        );
 
-          // update selected user
-          if (selectedUser && updated.id === selectedUser.id) {
-            setSelectedUser(updated);
-          }
-        }
-      )
-      .subscribe();
+        setSelectedUser((prev: any) =>
+          prev && prev.id === updated.id ? updated : prev
+        );
+      }
+    )
+    .subscribe();
 
-    return () => supabase.removeChannel(channel);
-  }, [currentUser, selectedUser]);
-
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []); // keep EMPTY
   // 📤 Send message (UNCHANGED)
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser) return;
