@@ -17,6 +17,12 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+  // notification permission
+  useEffect(() => {
+  if (Notification.permission !== "granted") {
+    Notification.requestPermission();
+  }
+}, []);
 
   // 👤 Get current user + profile
   useEffect(() => {
@@ -75,38 +81,55 @@ export default function ChatPage() {
       .channel("chat-room")
 
       .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        async (payload) => {
-          const msg = payload.new;
+  "postgres_changes",
+  { event: "INSERT", schema: "public", table: "messages" },
+  async (payload) => {
+    const msg = payload.new;
 
-          const isRelevant =
-            (msg.sender === currentUser.id &&
-              msg.receiver === selectedUser.id) ||
-            (msg.sender === selectedUser.id &&
-              msg.receiver === currentUser.id);
+    const isRelevant =
+      (msg.sender === currentUser.id &&
+        msg.receiver === selectedUser.id) ||
+      (msg.sender === selectedUser.id &&
+        msg.receiver === currentUser.id);
 
-          if (isRelevant) {
-            setMessages((prev) => [...prev, msg]);
-          }
+    // ✅ keep your existing message update
+    if (isRelevant) {
+      setMessages((prev) => [...prev, msg]);
+    }
 
-          if (
-            msg.sender === selectedUser.id &&
-            msg.receiver === currentUser.id
-          ) {
-            await supabase
-              .from("messages")
-              .update({ seen: true })
-              .eq("id", msg.id);
+    // 🔥 STEP 2: FIXED NOTIFICATION
+if (
+  msg.sender !== currentUser?.id &&
+  Notification.permission === "granted"
+) {
+  const senderUser = users.find((u) => u.id === msg.sender);
 
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === msg.id ? { ...m, seen: true } : m
-              )
-            );
-          }
-        }
-      )
+  new Notification(
+    `Message from ${senderUser?.username || "User"}`,
+    {
+      body: msg.content || "Sent an image",
+    }
+  );
+}
+
+    // ✅ keep your existing seen logic
+    if (
+      msg.sender === selectedUser.id &&
+      msg.receiver === currentUser.id
+    ) {
+      await supabase
+        .from("messages")
+        .update({ seen: true })
+        .eq("id", msg.id);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id ? { ...m, seen: true } : m
+        )
+      );
+    }
+  }
+)
 
       .on(
         "postgres_changes",
