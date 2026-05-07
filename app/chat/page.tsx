@@ -144,16 +144,28 @@ if (
 )
 
       .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
-        (payload) => {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === payload.new.id ? payload.new : msg
-            )
-          );
-        }
+  "postgres_changes",
+  { event: "UPDATE", schema: "public", table: "messages" },
+  (payload) => {
+    const updated = payload.new;
+
+    const isRelevant =
+      (updated.sender === currentUser.id &&
+        updated.receiver === selectedUser.id) ||
+      (updated.sender === selectedUser.id &&
+        updated.receiver === currentUser.id);
+
+    if (!isRelevant) return;
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === updated.id
+          ? { ...msg, seen: updated.seen }
+          : msg
       )
+    );
+  }
+)
 
       .subscribe();
 
