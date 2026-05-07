@@ -1,6 +1,4 @@
-const withPWAInit = require("next-pwa");
-
-const withPWA = withPWAInit({
+const withPWA = require("next-pwa")({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
 });
@@ -8,9 +6,7 @@ const withPWA = withPWAInit({
 const nextConfig = {
   reactStrictMode: true,
 
-  experimental: {
-    turbo: {},
-  },
+  turbopack: {},
 };
 
 module.exports = withPWA(nextConfig);
