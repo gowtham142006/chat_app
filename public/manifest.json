@@ -1,7 +1,7 @@
 {
   "name": "Chat App",
   "short_name": "Chat",
-  "description": "Realtime chat application",
+  "description": "Realtime chat app",
   "start_url": "/chat",
   "display": "standalone",
   "background_color": "#ffffff",
