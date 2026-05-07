@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { initializeApp } from "firebase/app";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 export default function ChatPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -31,9 +33,48 @@ useEffect(() => {
   }, [messages]);
   // notification permission
   useEffect(() => {
-  if (Notification.permission !== "granted") {
-    Notification.requestPermission();
-  }
+  const setupNotifications = async () => {
+    try {
+      const permission = await Notification.requestPermission();
+
+      if (permission === "granted") {
+        const firebaseConfig = {
+          apiKey: "AIzaSyAgKbWNEtWFR312MzpQn6cqe5KM7ISgytY",
+  authDomain: "chat-app-397ce.firebaseapp.com",
+  projectId: "chat-app-397ce",
+  storageBucket: "chat-app-397ce.firebasestorage.app",
+  messagingSenderId: "863365432919",
+  appId: "1:863365432919:web:fe03fd43a545032577c512",
+        };
+
+        const app = initializeApp(firebaseConfig);
+
+        const messaging = getMessaging(app);
+
+        const token = await getToken(messaging, {
+          vapidKey: "BNOeJCQxqyyFIQ0LJOPFK53ISi1rPCjri6hYQpjeNhkP5YHp5FsN-CubDO08XiZE7I92n4wPtYNgKPwUTGafod0",
+        });
+
+        console.log("FCM Token:", token);
+
+        onMessage(messaging, (payload) => {
+  console.log("Message received:", payload);
+
+  new Notification(
+    payload.notification?.title || "New Message",
+    {
+      body: payload.notification?.body || "You received a message",
+      icon: "/icon-192.png",
+    }
+  );
+});
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  setupNotifications();
 }, []);
 
   // 👤 Get current user + profile
