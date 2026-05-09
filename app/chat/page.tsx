@@ -50,6 +50,9 @@ useEffect(() => {
         const app = initializeApp(firebaseConfig);
 
         const messaging = getMessaging(app);
+        await navigator.serviceWorker.register(
+  "/firebase-messaging-sw.js"
+);
 
         const token = await getToken(messaging, {
           vapidKey: "BNOeJCQxqyyFIQ0LJOPFK53ISi1rPCjri6hYQpjeNhkP5YHp5FsN-CubDO08XiZE7I92n4wPtYNgKPwUTGafod0",
