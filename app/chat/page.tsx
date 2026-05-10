@@ -67,7 +67,7 @@ useEffect(() => {
     payload.notification?.title || "New Message",
     {
       body: payload.notification?.body || "You received a message",
-      icon: "/icon-192.png",
+      icon: "/chat-icon-192.png",
     }
   );
 });
