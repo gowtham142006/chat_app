@@ -34,6 +34,8 @@ useEffect(() => {
   // notification permission
   useEffect(() => {
   const setupNotifications = async () => {
+    if (!currentUser) return;
+    if (localStorage.getItem("fcm_saved")) return;
     try {
       const permission = await Notification.requestPermission();
 
@@ -57,6 +59,19 @@ useEffect(() => {
         const token = await getToken(messaging, {
           vapidKey: "BNOeJCQxqyyFIQ0LJOPFK53ISi1rPCjri6hYQpjeNhkP5YHp5FsN-CubDO08XiZE7I92n4wPtYNgKPwUTGafod0",
         });
+        console.log("FCM Token:", token);
+console.log("Current User:", currentUser);
+
+const { data, error } = await supabase
+  .from("profiles")
+  .update({
+    fcm_token: token,
+  })
+  .eq("id", currentUser.id)
+  .select();
+
+console.log("Update Data:", data);
+console.log("Update Error:", error);
 
         console.log("FCM Token:", token);
 
@@ -249,17 +264,31 @@ if (
 }, []); // keep EMPTY
   // 📤 Send message (UNCHANGED)
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedUser) return;
+  if (!newMessage.trim() || !selectedUser) return;
 
-    await supabase.from("messages").insert({
-      sender: currentUser.id,
-      receiver: selectedUser.id,
-      content: newMessage,
-      seen: false,
-    });
+  const messageText = newMessage;
 
-    setNewMessage("");
-  };
+  await supabase.from("messages").insert({
+    sender: currentUser.id,
+    receiver: selectedUser.id,
+    content: messageText,
+    seen: false,
+  });
+
+  await fetch("/api/send-notification", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      receiverId: selectedUser.id,
+      senderName: currentUser.username,
+      message: messageText,
+    }),
+  });
+
+  setNewMessage("");
+};
 
   // ⌨️ Enter send (UNCHANGED)
   const handleKeyDown = (e: any) => {
