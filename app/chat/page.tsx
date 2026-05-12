@@ -16,6 +16,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     const handleResize = () => {
@@ -113,6 +114,9 @@ export default function ChatPage() {
         ...session.user,
         ...profile,
       });
+      setAuthLoading(false);
+  } else {
+    setAuthLoading(false);
     }
   };
 
@@ -396,6 +400,13 @@ export default function ChatPage() {
       `https://ui-avatars.com/api/?name=${user.username}`
     );
   };
+  if (authLoading) {
+  return (
+    <div className="h-screen flex items-center justify-center bg-[#0b141a] text-white">
+      Loading...
+    </div>
+  );
+}
 
   return (
     <div className="flex h-screen w-full bg-[#0b141a] text-white overflow-hidden">
