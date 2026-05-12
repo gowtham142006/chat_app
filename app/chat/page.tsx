@@ -35,7 +35,7 @@ useEffect(() => {
   useEffect(() => {
   const setupNotifications = async () => {
     if (!currentUser) return;
-    if (localStorage.getItem("fcm_saved")) return;
+    
     try {
       const permission = await Notification.requestPermission();
 
@@ -93,7 +93,7 @@ console.log("Update Error:", error);
   };
 
   setupNotifications();
-}, []);
+}, [currentUser?.id]);
 
   // 👤 Get current user + profile
   useEffect(() => {
