@@ -137,8 +137,10 @@ export default function ChatPage() {
           ...session.user,
           ...profile,
         });
+        setAuthLoading(false);
       } else {
         setCurrentUser(null);
+        setAuthLoading(false);
       }
     }
   );
