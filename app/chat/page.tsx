@@ -17,15 +17,15 @@ export default function ChatPage() {
 
   const [isMobile, setIsMobile] = useState(false);
 
-useEffect(() => {
-  const handleResize = () => {
-    setIsMobile(window.innerWidth < 768);
-  };
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
 
-  handleResize();
-  window.addEventListener("resize", handleResize);
-  return () => window.removeEventListener("resize", handleResize);
-}, []);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // 🔽 Auto scroll (UNCHANGED)
   useEffect(() => {
@@ -33,86 +33,116 @@ useEffect(() => {
   }, [messages]);
   // notification permission
   useEffect(() => {
-  const setupNotifications = async () => {
-    if (!currentUser) return;
-    
-    try {
-      const permission = await Notification.requestPermission();
+    const setupNotifications = async () => {
+      if (!currentUser) return;
 
-      if (permission === "granted") {
-        const firebaseConfig = {
-          apiKey: "AIzaSyAgKbWNEtWFR312MzpQn6cqe5KM7ISgytY",
-  authDomain: "chat-app-397ce.firebaseapp.com",
-  projectId: "chat-app-397ce",
-  storageBucket: "chat-app-397ce.firebasestorage.app",
-  messagingSenderId: "863365432919",
-  appId: "1:863365432919:web:fe03fd43a545032577c512",
-        };
+      try {
+        const permission = await Notification.requestPermission();
 
-        const app = initializeApp(firebaseConfig);
+        if (permission === "granted") {
+          const firebaseConfig = {
+            apiKey: "AIzaSyAgKbWNEtWFR312MzpQn6cqe5KM7ISgytY",
+            authDomain: "chat-app-397ce.firebaseapp.com",
+            projectId: "chat-app-397ce",
+            storageBucket: "chat-app-397ce.firebasestorage.app",
+            messagingSenderId: "863365432919",
+            appId: "1:863365432919:web:fe03fd43a545032577c512",
+          };
 
-        const messaging = getMessaging(app);
-        await navigator.serviceWorker.register(
-  "/firebase-messaging-sw.js"
-);
+          const app = initializeApp(firebaseConfig);
 
-        const token = await getToken(messaging, {
-          vapidKey: "BNOeJCQxqyyFIQ0LJOPFK53ISi1rPCjri6hYQpjeNhkP5YHp5FsN-CubDO08XiZE7I92n4wPtYNgKPwUTGafod0",
-        });
-        console.log("FCM Token:", token);
-console.log("Current User:", currentUser);
+          const messaging = getMessaging(app);
+          await navigator.serviceWorker.register(
+            "/firebase-messaging-sw.js"
+          );
 
-const { data, error } = await supabase
-  .from("profiles")
-  .update({
-    fcm_token: token,
-  })
-  .eq("id", currentUser.id)
-  .select();
+          const token = await getToken(messaging, {
+            vapidKey: "BNOeJCQxqyyFIQ0LJOPFK53ISi1rPCjri6hYQpjeNhkP5YHp5FsN-CubDO08XiZE7I92n4wPtYNgKPwUTGafod0",
+          });
+          console.log("FCM Token:", token);
+          console.log("Current User:", currentUser);
 
-console.log("Update Data:", data);
-console.log("Update Error:", error);
+          const { data, error } = await supabase
+            .from("profiles")
+            .update({
+              fcm_token: token,
+            })
+            .eq("id", currentUser.id)
+            .select();
 
-        console.log("FCM Token:", token);
+          console.log("Update Data:", data);
+          console.log("Update Error:", error);
 
-        onMessage(messaging, (payload) => {
-  console.log("Message received:", payload);
+          console.log("FCM Token:", token);
 
-  new Notification(
-    payload.notification?.title || "New Message",
-    {
-      body: payload.notification?.body || "You received a message",
-      icon: "/chat-icon-192.png",
-    }
-  );
-});
+          onMessage(messaging, (payload) => {
+            console.log("Message received:", payload);
+
+            new Notification(
+              payload.notification?.title || "New Message",
+              {
+                body: payload.notification?.body || "You received a message",
+                icon: "/chat-icon-192.png",
+              }
+            );
+          });
+        }
+      } catch (error) {
+        console.error(error);
       }
-    } catch (error) {
-      console.error(error);
+    };
+
+    setupNotifications();
+  }, [currentUser?.id]);
+
+  // 👤 Get current user + profile
+ useEffect(() => {
+  const getSession = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single();
+
+      setCurrentUser({
+        ...session.user,
+        ...profile,
+      });
     }
   };
 
-  setupNotifications();
-}, [currentUser?.id]);
+  getSession();
 
-  // 👤 Get current user + profile
-  useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-
-      if (data.user) {
-        // ✅ fetch profile also
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(
+    async (_event, session) => {
+      if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", data.user.id)
+          .eq("id", session.user.id)
           .single();
 
-        setCurrentUser({ ...data.user, ...profile });
+        setCurrentUser({
+          ...session.user,
+          ...profile,
+        });
+      } else {
+        setCurrentUser(null);
       }
-    };
-    getUser();
-  }, []);
+    }
+  );
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
 
   // 👥 Fetch users (UNCHANGED)
   useEffect(() => {
@@ -152,79 +182,79 @@ console.log("Update Error:", error);
       .channel("chat-room")
 
       .on(
-  "postgres_changes",
-  { event: "INSERT", schema: "public", table: "messages" },
-  async (payload) => {
-    const msg = payload.new;
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        async (payload) => {
+          const msg = payload.new;
 
-    const isRelevant =
-      (msg.sender === currentUser.id &&
-        msg.receiver === selectedUser.id) ||
-      (msg.sender === selectedUser.id &&
-        msg.receiver === currentUser.id);
+          const isRelevant =
+            (msg.sender === currentUser.id &&
+              msg.receiver === selectedUser.id) ||
+            (msg.sender === selectedUser.id &&
+              msg.receiver === currentUser.id);
 
-    // ✅ keep your existing message update
-    if (isRelevant) {
-      setMessages((prev) => [...prev, msg]);
-    }
+          // ✅ keep your existing message update
+          if (isRelevant) {
+            setMessages((prev) => [...prev, msg]);
+          }
 
-    // 🔥 STEP 2: FIXED NOTIFICATION
-if (
-  msg.sender !== currentUser?.id &&
-  Notification.permission === "granted"
-) {
-  const senderUser = users.find((u) => u.id === msg.sender);
+          // 🔥 STEP 2: FIXED NOTIFICATION
+          if (
+            msg.sender !== currentUser?.id &&
+            Notification.permission === "granted"
+          ) {
+            const senderUser = users.find((u) => u.id === msg.sender);
 
-  new Notification(
-    `Message from ${senderUser?.username || "User"}`,
-    {
-      body: msg.content || "Sent an image",
-    }
-  );
-}
+            new Notification(
+              `Message from ${senderUser?.username || "User"}`,
+              {
+                body: msg.content || "Sent an image",
+              }
+            );
+          }
 
-    // ✅ keep your existing seen logic
-    if (
-      msg.sender === selectedUser.id &&
-      msg.receiver === currentUser.id
-    ) {
-      await supabase
-        .from("messages")
-        .update({ seen: true })
-        .eq("id", msg.id);
+          // ✅ keep your existing seen logic
+          if (
+            msg.sender === selectedUser.id &&
+            msg.receiver === currentUser.id
+          ) {
+            await supabase
+              .from("messages")
+              .update({ seen: true })
+              .eq("id", msg.id);
 
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msg.id ? { ...m, seen: true } : m
-        )
-      );
-    }
-  }
-)
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msg.id ? { ...m, seen: true } : m
+              )
+            );
+          }
+        }
+      )
 
       .on(
-  "postgres_changes",
-  { event: "UPDATE", schema: "public", table: "messages" },
-  (payload) => {
-    const updated = payload.new;
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) => {
+          const updated = payload.new;
 
-    const isRelevant =
-      (updated.sender === currentUser.id &&
-        updated.receiver === selectedUser.id) ||
-      (updated.sender === selectedUser.id &&
-        updated.receiver === currentUser.id);
+          const isRelevant =
+            (updated.sender === currentUser.id &&
+              updated.receiver === selectedUser.id) ||
+            (updated.sender === selectedUser.id &&
+              updated.receiver === currentUser.id);
 
-    if (!isRelevant) return;
+          if (!isRelevant) return;
 
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === updated.id
-          ? { ...msg, seen: updated.seen }
-          : msg
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === updated.id
+                ? { ...msg, seen: updated.seen }
+                : msg
+            )
+          );
+        }
       )
-    );
-  }
-)
 
       .subscribe();
 
@@ -234,61 +264,61 @@ if (
   }, [selectedUser, currentUser]);
 
   // 🔥 REALTIME PROFILE FIX (NEW)
- useEffect(() => {
-  const channel = supabase
-    .channel("profiles-sync")
-    .on(
-      "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "profiles" },
-      (payload) => {
-        const updated = payload.new;
+  useEffect(() => {
+    const channel = supabase
+      .channel("profiles-sync")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles" },
+        (payload) => {
+          const updated = payload.new;
 
-        setUsers((prev) =>
-          prev.map((u) => (u.id === updated.id ? updated : u))
-        );
+          setUsers((prev) =>
+            prev.map((u) => (u.id === updated.id ? updated : u))
+          );
 
-        setCurrentUser((prev: any) =>
-          prev && prev.id === updated.id ? { ...prev, ...updated } : prev
-        );
+          setCurrentUser((prev: any) =>
+            prev && prev.id === updated.id ? { ...prev, ...updated } : prev
+          );
 
-        setSelectedUser((prev: any) =>
-          prev && prev.id === updated.id ? updated : prev
-        );
-      }
-    )
-    .subscribe();
+          setSelectedUser((prev: any) =>
+            prev && prev.id === updated.id ? updated : prev
+          );
+        }
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []); // keep EMPTY
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // keep EMPTY
   // 📤 Send message (UNCHANGED)
   const sendMessage = async () => {
-  if (!newMessage.trim() || !selectedUser) return;
+    if (!newMessage.trim() || !selectedUser) return;
 
-  const messageText = newMessage;
+    const messageText = newMessage;
 
-  await supabase.from("messages").insert({
-    sender: currentUser.id,
-    receiver: selectedUser.id,
-    content: messageText,
-    seen: false,
-  });
+    await supabase.from("messages").insert({
+      sender: currentUser.id,
+      receiver: selectedUser.id,
+      content: messageText,
+      seen: false,
+    });
 
-  await fetch("/api/send-notification", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      receiverId: selectedUser.id,
-      senderName: currentUser.username,
-      message: messageText,
-    }),
-  });
+    await fetch("/api/send-notification", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        receiverId: selectedUser.id,
+        senderName: currentUser.username,
+        message: messageText,
+      }),
+    });
 
-  setNewMessage("");
-};
+    setNewMessage("");
+  };
 
   // ⌨️ Enter send (UNCHANGED)
   const handleKeyDown = (e: any) => {
@@ -304,37 +334,58 @@ if (
   };
 
   // 🔥 Upload Avatar (FIXED)
-  const uploadAvatar = async () => {
-    if (!file || !currentUser) return;
+ const uploadAvatar = async () => {
+  if (!file || !currentUser) return;
 
-    const fileName = `${currentUser.id}-${Date.now()}`;
+  const fileExt = file.name.split(".").pop();
 
-    const { error } = await supabase.storage
-      .from("avatars")
-      .upload(fileName, file);
+  // always same filename per user
+  const fileName = `${currentUser.id}.${fileExt}`;
 
-    if (error) {
-      alert("Upload failed ❌");
-      return;
-    }
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(fileName, file, {
+      upsert: true,
+    });
 
-    const { data } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(fileName);
+  if (uploadError) {
+    console.error(uploadError);
+    alert("Upload failed ❌");
+    return;
+  }
 
-    await supabase
-      .from("profiles")
-      .update({ avatar_url: data.publicUrl })
-      .eq("id", currentUser.id);
+  const {
+    data: { publicUrl },
+  } = supabase.storage
+    .from("avatars")
+    .getPublicUrl(fileName);
 
-    // ✅ update instantly
-    setCurrentUser((prev: any) => ({
-      ...prev,
-      avatar_url: data.publicUrl,
-    }));
+  const finalUrl = `${publicUrl}?t=${Date.now()}`;
 
-    alert("Avatar updated ✅");
-  };
+  await supabase
+    .from("profiles")
+    .update({
+      avatar_url: finalUrl,
+    })
+    .eq("id", currentUser.id);
+
+  // update current user instantly
+  setCurrentUser((prev: any) => ({
+    ...prev,
+    avatar_url: finalUrl,
+  }));
+
+  // update users list instantly
+  setUsers((prev: any[]) =>
+    prev.map((u) =>
+      u.id === currentUser.id
+        ? { ...u, avatar_url: finalUrl }
+        : u
+    )
+  );
+
+  alert("Avatar updated ✅");
+};
 
   // 🔥 Safe avatar
   const getAvatar = (user: any) => {
@@ -347,149 +398,194 @@ if (
   };
 
   return (
-  <div style={{ display: "flex", height: "100vh", width: "100%" }}>
+    <div className="flex h-screen w-full bg-[#0b141a] text-white overflow-hidden">
 
-    {/* ✅ USERS PANEL */}
-    {(!showChat || !isMobile) && (
-  <div
-    style={{
-      width: isMobile ? "100%" : "30%",
-          borderRight: "1px solid #ccc",
-          padding: 10,
-        }}
-      >
-        <h3>Users</h3>
+      {/* ✅ USERS PANEL */}
+      {(!showChat || !isMobile) && (
+        <div
+          className={`
+${isMobile ? "w-full" : "w-[30%]"}
+bg-[#111b21]
+border-r
+border-[#222]
+p-3
+overflow-y-auto
+flex
+flex-col
+`}
+        >
+          <h3>Users</h3>
 
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-        />
-        <button onClick={uploadAvatar}>Upload</button>
+          <div className="p-3 space-y-2">
+  <label className="flex items-center justify-center gap-2 bg-[#202c33] hover:bg-[#2a3942] transition cursor-pointer p-3 rounded-xl text-sm">
 
-        {users.map((user) => (
-          <div
-            key={user.id}
-            onClick={() => {
-              setSelectedUser(user);
-              setShowChat(true); // 🔥 mobile switch
-            }}
-            style={{
-              padding: 10,
-              cursor: "pointer",
-              borderBottom: "1px solid #eee",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                selectedUser?.id === user.id ? "#f0f0f0" : "white",
-            }}
-          >
-            <img
-              src={getAvatar(user)}
-              width={40}
-              height={40}
-              style={{ borderRadius: "50%" }}
-              onError={(e) => (e.currentTarget.src = "/default.png")}
-            />
-            {user.username}
-          </div>
-        ))}
-      </div>
-    )}
+    <input
+      type="file"
+      onChange={(e) =>
+        setFile(e.target.files?.[0] || null)
+      }
+      className="hidden"
+    />
 
-    {/* ✅ CHAT PANEL */}
-    {(showChat || !isMobile) && (
-  <div
-    style={{
-      width: isMobile ? "100%" : "70%",
-          padding: 10,
-        }}
-      >
-        {/* 🔥 BACK BUTTON (mobile only) */}
-        {isMobile && (
-          <button onClick={() => setShowChat(false)}>⬅ Back</button>
-        )}
+     {file ? file.name : "Upload Profile"}
+  </label>
 
-        {selectedUser ? (
-          <>
-            <h3 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+  {file && (
+    <button
+      onClick={uploadAvatar}
+      className="w-full bg-[#25D366] text-black p-3 rounded-xl font-semibold"
+    >
+      Update Avatar
+    </button>
+  )}
+</div>
+        <div className="flex-1">
+          {users.map((user) => (
+            <div
+              key={user.id}
+              onClick={() => {
+                setSelectedUser(user);
+                setShowChat(true); // 🔥 mobile switch
+              }}
+              className={`
+flex items-center gap-3 p-3 rounded-xl cursor-pointer mb-2 transition
+${
+  selectedUser?.id === user.id
+    ? "bg-[#202c33]"
+    : "hover:bg-[#1a252c]"
+}
+`}
+            >
+              
               <img
-                src={getAvatar(selectedUser)}
-                width={35}
-                style={{ borderRadius: "50%" }}
+                src={getAvatar(user)}
+                width={40}
+                height={40}
+                className="rounded-full"
+                onError={(e) => (e.currentTarget.src = "/default.png")}
               />
-              {selectedUser.username}
-            </h3>
+              {user.username}
+            </div>
+          ))}
+          </div>
+          <button
+  onClick={async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/auth";
+  }}
+  className="w-full mt-4 bg-red-500 hover:bg-red-600 transition p-3 rounded-xl font-semibold"
+>
+  Logout
+</button>
+        </div>
+      )}
 
-            <div style={{ height: "70vh", overflowY: "auto" }}>
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  style={{
-                    display: "flex",
-                    flexDirection:
-                      msg.sender === currentUser.id ? "row-reverse" : "row",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 10,
-                  }}
-                >
-                  <img
-                    src={
-                      msg.sender === currentUser.id
-                        ? getAvatar(currentUser)
-                        : getAvatar(selectedUser)
-                    }
-                    width={30}
-                    style={{ borderRadius: "50%" }}
-                  />
+      {/* ✅ CHAT PANEL */}
+      {(showChat || !isMobile) && (
+        <div
+          className={`
+${isMobile ? "w-full" : "w-[70%]"}
+flex
+flex-col
+bg-[#0b141a]
+`}
+        >
+          {/* 🔥 BACK BUTTON (mobile only) */}
+          {isMobile && (
+            <button onClick={() => setShowChat(false)}>⬅ Back</button>
+          )}
 
-                  <div>
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 10,
-                        background:
-                          msg.sender === currentUser.id
-                            ? "#d1f7c4"
-                            : "#eee",
-                      }}
-                    >
-                      {msg.content}
-                    </div>
+          {selectedUser ? (
+            <>
+              <h3 className="flex items-center gap-3 p-4 border-b border-[#222] bg-[#111b21]">
+                <img
+                  src={getAvatar(selectedUser)}
+                  width={35}
+                  className="rounded-full"
+                />
+                {selectedUser.username}
+              </h3>
 
-                    <div style={{ fontSize: 10, color: "gray" }}>
-                      {formatTime(msg.created_at)}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((msg) => (
+                  <div
+  key={msg.id}
+  className={`
+    flex items-end gap-2 mb-3
+    ${
+      msg.sender === currentUser.id
+        ? "justify-end"
+        : "justify-start"
+    }
+  `}
+>
+                    <img
+                      src={
+                        msg.sender === currentUser.id
+                          ? getAvatar(currentUser)
+                          : getAvatar(selectedUser)
+                      }
+                      width={30}
+                      style={{ borderRadius: "50%" }}
+                    />
 
-                      {msg.sender === currentUser.id && (
-                        <span style={{ marginLeft: 5 }}>
-                          {msg.seen ? "✔✔" : "✔"}
-                        </span>
-                      )}
+                    <div>
+                      <div
+  className={`
+  px-4
+  py-2
+  rounded-2xl
+  max-w-[240px]
+  text-sm
+  shadow
+  ${
+    msg.sender === currentUser.id
+      ? "bg-[#25D366] text-black"
+      : "bg-[#202c33] text-white"
+  }
+`}
+>
+                        {msg.content}
+                      </div>
+
+                      <div style={{ fontSize: 10, color: "gray" }}>
+                        {formatTime(msg.created_at)}
+
+                        {msg.sender === currentUser.id && (
+                          <span style={{ marginLeft: 5 }}>
+                            {msg.seen ? "✔✔" : "✔"}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              <div ref={bottomRef} />
-            </div>
+                <div ref={bottomRef} />
+              </div>
 
-            <div style={{ marginTop: 10 }}>
-              <input
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type message..."
-                style={{ width: "80%", padding: 8 }}
-              />
-              <button onClick={sendMessage}>Send</button>
-            </div>
-          </>
-        ) : (
-          <p>Select a user to start chatting</p>
-        )}
-      </div>
-    )}
-  </div>
-);
+              <div className="p-3 border-t border-[#222] flex gap-2 bg-[#111b21]">
+                <input
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type a message"
+                  className="flex-1 p-3 rounded-full bg-[#202c33] outline-none text-white"
+                />
+
+                <button
+                  onClick={sendMessage}
+                  className="bg-[#25D366] text-black px-5 rounded-full font-semibold"
+                >
+                  Send
+                </button>
+              </div>
+            </>
+          ) : (
+            <p>Select a user to start chatting</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

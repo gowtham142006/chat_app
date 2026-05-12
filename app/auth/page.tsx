@@ -1,96 +1,126 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { supabase } from "../../lib/supabase"
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function AuthPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const router = useRouter();
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+const [isLogin, setIsLogin] = useState(true);
   const signUp = async () => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  })
+    try {
+      setLoading(true);
 
-  if (error) {
-    alert(error.message)
-    return
-  }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-  // ✅ THIS IS THE NEW IMPORTANT PART
-  if (data.user) {
-    const { error: insertError } = await supabase
-      .from("profiles")
-      .insert({
-        id: data.user.id,
-        username: email.split("@")[0],
-      })
+      if (error) {
+        alert(error.message);
+        return;
+      }
 
-    if (insertError) {
-      console.log(insertError)
-      alert(insertError?.message)
-console.log(insertError)
+      if (data.user) {
+        await supabase.from("profiles").insert({
+          id: data.user.id,
+          username,
+        });
+      }
+
+      alert("Account created successfully ✅");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  alert("Check your email")
-}
+  const login = async () => {
+    try {
+      setLoading(true);
 
- const login = async () => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-  if (error) {
-    alert(error.message)
-    return
-  }
+      if (error) {
+        alert(error.message);
+        return;
+      }
 
-  // ✅ OPTIONAL SAFETY (recommended)
-  const user = data.user
-
-  const { data: existingProfile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single()
-
-  if (!existingProfile) {
-    await supabase.from("profiles").insert({
-      id: user.id,
-      username: email.split("@")[0],
-    })
-  }
-
-  alert("Logged in")
-
-  // ✅ REDIRECT (VERY IMPORTANT)
-  window.location.href = "/chat" // or "/" or "/dashboard"
-}
+      router.push("/chat");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Auth Page</h2>
+    <div className="min-h-screen flex items-center justify-center bg-[#0b141a] p-4">
+      <div className="w-full max-w-sm bg-[#111b21] rounded-2xl shadow-xl p-6 text-white">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-[#25D366]">
+            Chat App
+          </h1>
 
-      <input
-        placeholder="Email"
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <br /><br />
+          <p className="text-gray-400 mt-2">
+            Secure realtime messaging
+          </p>
+        </div>
 
-      <input
-        type="password"
-        placeholder="Password"
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <br /><br />
+        <div className="space-y-4">
+         {!isLogin && (
+  <input
+    type="text"
+    placeholder="Username"
+    value={username}
+    onChange={(e) => setUsername(e.target.value)}
+    className="w-full p-3 rounded-xl bg-[#202c33] outline-none border border-transparent focus:border-[#25D366]"
+  />
+)}
 
-      <div style={{ marginTop: 10 }}>
-  <button onClick={signUp}>Sign Up</button>
-  <button onClick={login} style={{ marginLeft: 10 }}>Login</button>
-</div>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 rounded-xl bg-[#202c33] outline-none border border-transparent focus:border-[#25D366]"
+          />
+
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 rounded-xl bg-[#202c33] outline-none border border-transparent focus:border-[#25D366]"
+          />
+
+          <button
+  onClick={isLogin ? login : signUp}
+  disabled={loading}
+  className="w-full bg-[#25D366] text-black font-semibold p-3 rounded-xl hover:opacity-90 transition"
+>
+  {isLogin ? "Login" : "Create Account"}
+</button>
+
+<button
+  onClick={() => setIsLogin(!isLogin)}
+  className="w-full border border-[#25D366] text-[#25D366] p-3 rounded-xl hover:bg-[#25D366] hover:text-black transition"
+>
+  {isLogin
+    ? "Need an account? Sign Up"
+    : "Already have an account? Login"}
+</button>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
