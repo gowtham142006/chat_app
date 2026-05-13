@@ -1,5 +1,10 @@
-importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js");
+importScripts(
+  "https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"
+);
+
+importScripts(
+  "https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"
+);
 
 firebase.initializeApp({
   apiKey: "AIzaSyAgKbWNEtWFR312MzpQn6cqe5KM7ISgytY",
@@ -13,8 +18,30 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  self.registration.showNotification(payload.notification.title, {
-    body: payload.notification.body,
+  console.log(
+    "[firebase-messaging-sw.js] Background message ",
+    payload
+  );
+
+  const notificationTitle =
+    payload.notification?.title || "New Message";
+
+  const notificationOptions = {
+    body:
+      payload.notification?.body ||
+      "You received a new message",
     icon: "/chat-icon-192.png",
-  });
+  };
+
+  self.registration.showNotification(
+    notificationTitle,
+    notificationOptions
+  );
+});
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+
+  event.waitUntil(
+    clients.openWindow("https://chat-app-six-phi-32.vercel.app/chat")
+  );
 });
