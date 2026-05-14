@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import {
+  encryptMessage,
+  decryptMessage,
+} from "@/lib/crypto";
 
 export default function ChatPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -219,7 +223,7 @@ const token = await getToken(messaging, {
             new Notification(
               `Message from ${senderUser?.username || "User"}`,
               {
-                body: msg.content || "Sent an image",
+                body: decryptMessage(msg.content) || "Sent an image",
               }
             );
           }
@@ -312,7 +316,7 @@ const token = await getToken(messaging, {
     await supabase.from("messages").insert({
       sender: currentUser.id,
       receiver: selectedUser.id,
-      content: messageText,
+      content: encryptMessage(messageText),
       seen: false,
     });
 
@@ -563,7 +567,7 @@ bg-[#0b141a]
   }
 `}
 >
-                        {msg.content}
+                        {decryptMessage(msg.content)}
                       </div>
 
                       <div style={{ fontSize: 10, color: "gray" }}>
