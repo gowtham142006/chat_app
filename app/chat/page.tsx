@@ -9,11 +9,21 @@ import {
   decryptMessage,
 } from "@/lib/crypto";
 
+type MessageRow = {
+  id: string;
+  sender: string;
+  receiver: string;
+  content: string;
+  seen: boolean;
+  created_at: string;
+};
+
 export default function ChatPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [showChat, setShowChat] = useState(false);
@@ -179,6 +189,8 @@ const token = await getToken(messaging, {
   useEffect(() => {
     if (!selectedUser || !currentUser) return;
 
+    setActiveMessageId(null);
+
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("messages")
@@ -195,11 +207,10 @@ const token = await getToken(messaging, {
 
     const channel = supabase
       .channel("chat-room")
-
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
-        async (payload) => {
+        async (payload: { new: MessageRow }) => {
           const msg = payload.new;
 
           const isRelevant =
@@ -208,12 +219,10 @@ const token = await getToken(messaging, {
             (msg.sender === selectedUser.id &&
               msg.receiver === currentUser.id);
 
-          // ✅ keep your existing message update
           if (isRelevant) {
             setMessages((prev) => [...prev, msg]);
           }
 
-          // 🔥 STEP 2: FIXED NOTIFICATION
           if (
             msg.sender !== currentUser?.id &&
             Notification.permission === "granted"
@@ -228,7 +237,6 @@ const token = await getToken(messaging, {
             );
           }
 
-          // ✅ keep your existing seen logic
           if (
             msg.sender === selectedUser.id &&
             msg.receiver === currentUser.id
@@ -246,11 +254,10 @@ const token = await getToken(messaging, {
           }
         }
       )
-
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages" },
-        (payload) => {
+        (payload: { new: Pick<MessageRow, "id" | "sender" | "receiver" | "seen"> }) => {
           const updated = payload.new;
 
           const isRelevant =
@@ -267,6 +274,25 @@ const token = await getToken(messaging, {
                 ? { ...msg, seen: updated.seen }
                 : msg
             )
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload: { old: Partial<MessageRow> }) => {
+          const deleted = payload.old as MessageRow;
+
+          const isRelevant =
+            (deleted.sender === currentUser.id &&
+              deleted.receiver === selectedUser.id) ||
+            (deleted.sender === selectedUser.id &&
+              deleted.receiver === currentUser.id);
+
+          if (!isRelevant) return;
+
+          setMessages((prev) =>
+            prev.filter((msg) => msg.id !== deleted.id)
           );
         }
       )
@@ -333,6 +359,28 @@ const token = await getToken(messaging, {
     });
 
     setNewMessage("");
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    const confirmed = window.confirm(
+      "Delete this message for everyone?"
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("messages")
+      .delete()
+      .eq("id", messageId);
+
+    if (error) {
+      console.error(error);
+      alert("Failed to delete message");
+      return;
+    }
+
+    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    setActiveMessageId(null);
   };
 
   // ⌨️ Enter send (UNCHANGED)
@@ -540,6 +588,11 @@ bg-[#0b141a]
         : "justify-start"
     }
   `}
+  onClick={() => {
+    if (msg.sender === currentUser.id) {
+      setActiveMessageId((prev) => (prev === msg.id ? null : msg.id));
+    }
+  }}
 >
                     <img
                       src={
@@ -551,7 +604,7 @@ bg-[#0b141a]
                       style={{ borderRadius: "50%" }}
                     />
 
-                    <div>
+                    <div className="relative">
                       <div
   className={`
   px-4
@@ -570,13 +623,26 @@ bg-[#0b141a]
                         {decryptMessage(msg.content)}
                       </div>
 
-                      <div style={{ fontSize: 10, color: "gray" }}>
+                      <div
+                        style={{ fontSize: 10, color: "gray" }}
+                        className="mt-1 flex items-center gap-2"
+                      >
                         {formatTime(msg.created_at)}
 
                         {msg.sender === currentUser.id && (
                           <span style={{ marginLeft: 5 }}>
                             {msg.seen ? "✔✔" : "✔"}
                           </span>
+                        )}
+
+                        {msg.sender === currentUser.id && activeMessageId === msg.id && (
+                          <button
+                            type="button"
+                            onClick={() => deleteMessage(msg.id)}
+                            className="ml-2 rounded-full border border-red-500/30 px-2 py-1 text-[10px] font-semibold text-red-400 transition hover:border-red-400 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
                         )}
                       </div>
                     </div>
