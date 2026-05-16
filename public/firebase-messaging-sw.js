@@ -42,6 +42,6 @@ self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
   event.waitUntil(
-    clients.openWindow("https://chat-app-six-phi-32.vercel.app/chat")
+    clients.openWindow("/chat")
   );
 });

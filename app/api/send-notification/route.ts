@@ -22,25 +22,25 @@ export async function POST(req: Request) {
     }
 
     await admin.messaging().send({
-  token: profile.fcm_token,
+      token: profile.fcm_token,
 
-  notification: {
-    title: senderName,
-    body: message,
-  },
+      notification: {
+        title: senderName,
+        body: message,
+      },
 
-  webpush: {
-    notification: {
-      title: senderName,
-      body: message,
-      icon: "/chat-icon-192.png",
-    },
+      webpush: {
+        notification: {
+          title: senderName,
+          body: message,
+          icon: "/chat-icon-192.png",
+        },
 
-    fcmOptions: {
-      link: "https://chat-app-six-phi-32.vercel.app/chat",
-    },
-  },
-});
+        fcmOptions: {
+          link: "/chat",
+        },
+      },
+    });
 
     return NextResponse.json({
       success: true,
