@@ -35,6 +35,7 @@ https://chat-app-six-phi-32.vercel.app
 - Seen message status
 - Live database sync
 - Responsive chat interface
+- Message deletion functionality
 
 ---
 
@@ -58,6 +59,13 @@ https://chat-app-six-phi-32.vercel.app
 - Browser notifications
 - Background notifications
 - Realtime message alerts
+
+## Security Feature
+
+- Added AES message encryption for secure chatting.  
+- Messages are encrypted before storing in the database.  
+- Only authorized users can read decrypted messages.  
+- Improves user privacy and data protection.
 
 ---
 
@@ -85,9 +93,16 @@ https://chat-app-six-phi-32.vercel.app
 # 📂 Project Structure
 
 ```bash
-chat-app/
+CHAT-APP/
+│
+├── .next/
+│   ├── dev/
+│   ├── types/
+│   ├── _events_16064.json
+│   └── _events_17452.json
 │
 ├── app/
+│   │
 │   ├── api/
 │   │   └── send-notification/
 │   │       └── route.ts
@@ -102,23 +117,44 @@ chat-app/
 │   ├── layout.tsx
 │   └── page.tsx
 │
+├── components/
+│   ├── AvatarUploader.tsx
+│   ├── ChatHeader.tsx
+│   ├── MessageBubble.tsx
+│   ├── MessageInput.tsx
+│   ├── Sidebar.tsx
+│   └── UserCard.tsx
+│
+├── hooks/
+│   ├── index.ts
+│   ├── useAuth.ts
+│   ├── useAutoScroll.ts
+│   ├── useMessages.ts
+│   ├── useNotification.ts
+│   ├── useProfileSync.ts
+│   ├── useResponsive.ts
+│   └── useUsers.ts
+│
 ├── lib/
+│   ├── crypto.ts
 │   ├── firebase-admin.ts
 │   ├── firebase.js
 │   └── supabase.js
 │
+├── node_modules/
+│
 ├── public/
 │   ├── chat-icon-192.png
 │   ├── chat-icon-512.png
-│   ├── firebase-messaging-sw.js
-│   ├── manifest.json
-│   ├── sw.js
-│   ├── workbox-e43f5367.js
 │   ├── file.svg
+│   ├── firebase-messaging-sw.js
 │   ├── globe.svg
+│   ├── manifest.json
 │   ├── next.svg
+│   ├── sw.js
 │   ├── vercel.svg
-│   └── window.svg
+│   ├── window.svg
+│   └── workbox-e43f5367.js
 │
 ├── .env.local
 ├── .gitignore
@@ -127,8 +163,8 @@ chat-app/
 ├── eslint.config.mjs
 ├── next-env.d.ts
 ├── next.config.ts
-├── package.json
 ├── package-lock.json
+├── package.json
 ├── postcss.config.mjs
 ├── README.md
 └── tsconfig.json

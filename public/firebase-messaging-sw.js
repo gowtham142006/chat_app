@@ -24,13 +24,16 @@ messaging.onBackgroundMessage((payload) => {
   );
 
   const notificationTitle =
-    payload.notification?.title || "New Message";
+    payload.data?.title ||
+    payload.notification?.title ||
+    "New Message";
 
   const notificationOptions = {
-    body:
-      payload.notification?.body ||
-      "You received a new message",
-    icon: "/chat-icon-192.png",
+    body: payload.data?.body || payload.notification?.body || "You received a new message",
+    icon: payload.data?.icon || "/chat-icon-192.png",
+    data: {
+      link: payload.data?.link || "/chat",
+    },
   };
 
   self.registration.showNotification(
@@ -40,8 +43,9 @@ messaging.onBackgroundMessage((payload) => {
 });
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
+  const targetUrl = event.notification?.data?.link || "/chat";
 
   event.waitUntil(
-    clients.openWindow("/chat")
+    clients.openWindow(targetUrl)
   );
 });

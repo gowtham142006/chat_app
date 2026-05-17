@@ -23,22 +23,13 @@ export async function POST(req: Request) {
 
     await admin.messaging().send({
       token: profile.fcm_token,
-
-      notification: {
+      // Send data-only payload so the service worker is the single place
+      // that displays background notifications (avoids duplicate toasts).
+      data: {
         title: senderName,
         body: message,
-      },
-
-      webpush: {
-        notification: {
-          title: senderName,
-          body: message,
-          icon: "/chat-icon-192.png",
-        },
-
-        fcmOptions: {
-          link: "/chat",
-        },
+        icon: "/chat-icon-192.png",
+        link: "/chat",
       },
     });
 
