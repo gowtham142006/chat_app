@@ -60,12 +60,14 @@ https://chat-app-six-phi-32.vercel.app
 - Background notifications
 - Realtime message alerts
 
-## Security Feature
+---
 
-- Added AES message encryption for secure chatting.  
-- Messages are encrypted before storing in the database.  
-- Only authorized users can read decrypted messages.  
-- Improves user privacy and data protection.
+## 🔐 Security Feature
+
+- AES encrypted messaging using CryptoJS
+- Messages are encrypted before storing in the database
+- Secure user authentication with Supabase Auth    
+- Only authorized users can read decrypted messages
 
 ---
 
